@@ -1,61 +1,74 @@
-create database librarydb;
-use librarydb;
+CREATE DATABASE mini_project_ss08;
+USE mini_project_ss08;
 
-create table reader (
-    reader_id int primary key auto_increment,
-    reader_name varchar(100) not null,
-    phone varchar(15) unique,
-    register_date date default (current_date)
+-- Xóa bảng nếu đã tồn tại (để chạy lại nhiều lần)
+DROP TABLE IF EXISTS bookings;
+DROP TABLE IF EXISTS rooms;
+DROP TABLE IF EXISTS guests;
+
+-- Bảng khách hàng
+CREATE TABLE guests (
+    guest_id INT PRIMARY KEY AUTO_INCREMENT,
+    guest_name VARCHAR(100),
+    phone VARCHAR(20)
 );
 
-create table book (
-    book_id int primary key,
-    book_title varchar(150) not null,
-    author varchar(100),
-    publish_year int check (publish_year >= 1900)
+-- Bảng phòng
+CREATE TABLE rooms (
+    room_id INT PRIMARY KEY AUTO_INCREMENT,
+    room_type VARCHAR(50),
+    price_per_day DECIMAL(10,0)
 );
 
-create table borrow (
-    reader_id int,
-    book_id int,
-    borrow_date date default (current_date),
-    return_date date,
-    primary key (reader_id, book_id, borrow_date),
-    foreign key (reader_id) references reader(reader_id),
-    foreign key (book_id) references book(book_id)
+-- Bảng đặt phòng
+CREATE TABLE bookings (
+    booking_id INT PRIMARY KEY AUTO_INCREMENT,
+    guest_id INT,
+    room_id INT,
+    check_in DATE,
+    check_out DATE,
+    FOREIGN KEY (guest_id) REFERENCES guests(guest_id),
+    FOREIGN KEY (room_id) REFERENCES rooms(room_id)
 );
 
+INSERT INTO guests (guest_name, phone) VALUES
+('Nguyễn Văn An', '0901111111'),
+('Trần Thị Bình', '0902222222'),
+('Lê Văn Cường', '0903333333'),
+('Phạm Thị Dung', '0904444444'),
+('Hoàng Văn Em', '0905555555');
 
-alter table reader add column email varchar(100) unique;
+INSERT INTO rooms (room_type, price_per_day) VALUES
+('Standard', 500000),
+('Standard', 500000),
+('Deluxe', 800000),
+('Deluxe', 800000),
+('VIP', 1500000),
+('VIP', 2000000);
 
-alter table book modify column author varchar(150);
+INSERT INTO bookings (guest_id, room_id, check_in, check_out) VALUES
+(1, 1, '2024-01-10', '2024-01-12'), -- 2 ngày
+(1, 3, '2024-03-05', '2024-03-10'), -- 5 ngày
+(2, 2, '2024-02-01', '2024-02-03'), -- 2 ngày
+(2, 5, '2024-04-15', '2024-04-18'), -- 3 ngày
+(3, 4, '2023-12-20', '2023-12-25'), -- 5 ngày
+(3, 6, '2024-05-01', '2024-05-06'), -- 5 ngày
+(4, 1, '2024-06-10', '2024-06-11'); -- 1 ngày
 
-alter table borrow add constraint chk_return_date  check (return_date is null or return_date >= borrow_date);
+-- PHẦN I – TRUY VẤN DỮ LIỆU CƠ BẢN
+select guest_name, phone from guests;
+select room_type from rooms;
+select room_type, price_per_day from rooms order by price_per_day asc;
+select * from rooms where price_per_day > 1000000;
+select * from bookings where check_in between '2024-01-01' and '2024-12-31';
+select room_type, count(*) as total_rooms from rooms group by room_type;
 
-insert into reader (reader_id, reader_name, phone, email, register_date) values
-(1, 'nguyễn văn an', '0901234567', 'an.nguyen@gmail.com', '2024-09-01'),
-(2, 'trần thị bình', '0912345678', 'binh.tran@gmail.com', '2024-09-05'),
-(3, 'lê minh châu', '0923456789', 'chau.le@gmail.com', '2024-09-10');
+-- PHẦN II – TRUY VẤN NÂNG CAO
+select g.guest_name, r.room_type, b.check_in from bookings b
+join guests g on b.guest_id = g.guest_id
+join rooms r on b.room_id = r.room_id;
 
-insert into book (book_id, book_title, author, publish_year) values
-(101, 'lập trình c căn bản', 'nguyễn văn a', 2018),
-(102, 'cơ sở dữ liệu', 'trần thị b', 2020),
-(103, 'lập trình java', 'lê minh c', 2019),
-(104, 'hệ quản trị mysql', 'phạm văn d', 2021);
+select g.guest_name, count(b.booking_id) as total_bookings from guests g
+left join bookings b on g.guest_id = b.guest_id group by g.guest_id, g.guest_name;
 
-insert into borrow (reader_id, book_id, borrow_date, return_date) values
-(1, 101, '2024-09-15', null),
-(1, 102, '2024-09-15', '2024-09-25'),
-(2, 103, '2024-09-18', null);
-
-update borrow set return_date = '2024-10-01' where reader_id = 1;
-
-update book set publish_year = 2023 where publish_year >= 2021;
-
-delete from borrow where borrow_date < '2024-09-18';
-
-select * from reader;
-
-select * from book;
-
-select * from borrow;
+select b.booking_id, g.guest_name,
