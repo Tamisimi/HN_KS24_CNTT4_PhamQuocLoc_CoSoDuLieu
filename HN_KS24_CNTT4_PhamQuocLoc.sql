@@ -71,8 +71,13 @@ join rooms r on b.room_id = r.room_id;
 select g.guest_name, count(b.booking_id) as total_bookings from guests g
 left join bookings b on g.guest_id = b.guest_id group by g.guest_id, g.guest_name;
 
-select b.booking_id, g.guest_name,
-select r.room_id, r.room_type, r.price_per_day, sum(DATEDIFF(b.check_out, b.check_in)) 
-as total_days_stayed, (r.price_per_day * SUM(DATEDIFF(b.check_out, b.check_in))) as revenue
-from rooms r join bookings b on r.room_id = b.room_id group by r.room_id, r.room_type, r.price_per_day;
+select g.guest_name, count(b.booking_id) as total_bookings
+from guests g join bookings b ON g.guest_id = b.guest_id
+group by g.guest_id, g.guest_name having count(b.booking_id) >= 2;
+
+select r.room_type, count(b.booking_id) AS total_bookings
+from rooms r join bookings b on r.room_id = b.room_id
+group by r.room_type order by total_bookings desc limit 1;
+
+
 
