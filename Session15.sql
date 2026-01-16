@@ -115,56 +115,53 @@ SELECT * FROM likes;
 SELECT * FROM friends;
 
 
--- 1. Procedure gửi lời mời kết bạn (chỉ thêm 1 chiều pending)
+-- Procedure gửi lời mời kết bạn
 DELIMITER //
-CREATE PROCEDURE SendFriendRequest(IN p_user_id   INT,IN p_friend_id INT)
-
+CREATE PROCEDURE SendFriendRequest(IN p_user_id INT, IN p_friend_id INT)
 BEGIN
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION 
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
         ROLLBACK;
-        SELECT 'Lỗi! Đã rollback' AS message;
+        SELECT 'Lỗi khi gửi lời mời! Đã rollback.' AS message;
     END;
 
     START TRANSACTION;
 
-    -- Kiểm tra xem đã có quan hệ nào giữa 2 người chưa
     IF EXISTS (
-        SELECT 1 FROM friends 
+        SELECT 1 FROM friends
         WHERE (user_id = p_user_id AND friend_id = p_friend_id)
            OR (user_id = p_friend_id AND friend_id = p_user_id)
     ) THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Quan hệ đã tồn tại, không thể gửi thêm!';
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Quan hệ đã tồn tại';
     END IF;
 
-    -- Thêm lời mời pending
-    INSERT INTO friends (user_id, friend_id, status) 
+    INSERT INTO friends (user_id, friend_id, status)
     VALUES (p_user_id, p_friend_id, 'pending');
 
     COMMIT;
-    SELECT 'Đã gửi lời mời kết bạn thành công' AS message;
+    SELECT 'Gửi lời mời thành công!' AS message;
 END //
 DELIMITER ;
 
 
--- 2. Procedure quản lý mối quan hệ
+-- Procedure cập nhật/xóa mối quan hệ 
 DELIMITER //
 CREATE PROCEDURE ManageFriendship(
-    IN p_user_id   INT,
+    IN p_user_id INT,
     IN p_friend_id INT,
-    IN p_action    VARCHAR(20)
+    IN p_action VARCHAR(20)
 )
 BEGIN
     DECLARE current_status VARCHAR(20);
-    DECLARE EXIT HANDLER FOR SQLEXCEPTION 
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
         ROLLBACK;
-        SELECT 'Có lỗi xảy ra, đã rollback toàn bộ!' AS message;
+        SELECT 'Lỗi đã rollback!' AS message;
     END;
 
     START TRANSACTION;
 
-    -- Tìm trạng thái hiện tại
     SELECT status INTO current_status
     FROM friends
     WHERE (user_id = p_user_id AND friend_id = p_friend_id)
@@ -172,38 +169,36 @@ BEGIN
     LIMIT 1;
 
     IF current_status IS NULL THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Không tìm thấy mối quan hệ giữa 2 người này';
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Không tồn tại mối quan hệ!';
     END IF;
 
-    -- Xử lý từng action
     IF p_action = 'accept' THEN
         IF current_status = 'pending' THEN
-            UPDATE friends 
+            UPDATE friends
             SET status = 'accepted'
             WHERE (user_id = p_user_id AND friend_id = p_friend_id)
                OR (user_id = p_friend_id AND friend_id = p_user_id);
         ELSE
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Chỉ accept được khi đang pending';
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Chỉ accept khi pending';
         END IF;
-
-    ELSEIF p_action = 'reject' OR p_action = 'delete' THEN
-        DELETE FROM friends 
+    ELSEIF p_action = 'delete' THEN
+        DELETE FROM friends
         WHERE (user_id = p_user_id AND friend_id = p_friend_id)
            OR (user_id = p_friend_id AND friend_id = p_user_id);
-
-    ELSEIF p_action = 'cancel' THEN
-        DELETE FROM friends 
-        WHERE user_id = p_user_id AND friend_id = p_friend_id;
-
-        IF ROW_COUNT() = 0 THEN
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Bạn không phải người gửi lời mời';
-        END IF;
-
     ELSE
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Chỉ dùng: accept, reject, cancel, delete';
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Chỉ dùng accept hoặc delete';
     END IF;
 
     COMMIT;
-    SELECT CONCAT('Thao tác "', p_action, '" thành công!') AS message;
+    SELECT CONCAT('Thao tác ', p_action, ' thành công!') AS message;
 END //
 DELIMITER ;
+
+-- Giử lời mời
+CALL SendFriendRequest(1, 4);
+-- Chấp nhận bạn bè
+CALL ManageFriendship(4, 1, 'accept'); 
+-- Xóa bạn bè
+CALL ManageFriendship(1, 4, 'delete'); 
+-- Test lỗi 
+CALL ManageFriendship(1, 999, 'accept');
