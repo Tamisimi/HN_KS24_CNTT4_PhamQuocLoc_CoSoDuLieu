@@ -117,10 +117,8 @@ SELECT * FROM friends;
 
 -- 1. Procedure gửi lời mời kết bạn (chỉ thêm 1 chiều pending)
 DELIMITER //
-CREATE PROCEDURE SendFriendRequest(
-    IN p_user_id   INT,
-    IN p_friend_id INT
-)
+CREATE PROCEDURE SendFriendRequest(IN p_user_id   INT,IN p_friend_id INT)
+
 BEGIN
     DECLARE EXIT HANDLER FOR SQLEXCEPTION 
     BEGIN
@@ -149,16 +147,15 @@ END //
 DELIMITER ;
 
 
--- 2. Procedure quản lý mối quan hệ (accept, reject, cancel, delete)
+-- 2. Procedure quản lý mối quan hệ
 DELIMITER //
 CREATE PROCEDURE ManageFriendship(
     IN p_user_id   INT,
     IN p_friend_id INT,
-    IN p_action    VARCHAR(20)   -- accept | reject | cancel | delete
+    IN p_action    VARCHAR(20)
 )
 BEGIN
     DECLARE current_status VARCHAR(20);
-    
     DECLARE EXIT HANDLER FOR SQLEXCEPTION 
     BEGIN
         ROLLBACK;
@@ -167,7 +164,7 @@ BEGIN
 
     START TRANSACTION;
 
-    -- Tìm trạng thái hiện tại (kiểm tra cả 2 chiều)
+    -- Tìm trạng thái hiện tại
     SELECT status INTO current_status
     FROM friends
     WHERE (user_id = p_user_id AND friend_id = p_friend_id)
@@ -190,23 +187,20 @@ BEGIN
         END IF;
 
     ELSEIF p_action = 'reject' OR p_action = 'delete' THEN
-        -- reject hoặc delete đều xóa quan hệ
         DELETE FROM friends 
         WHERE (user_id = p_user_id AND friend_id = p_friend_id)
            OR (user_id = p_friend_id AND friend_id = p_user_id);
 
     ELSEIF p_action = 'cancel' THEN
-        -- chỉ người gửi mới hủy được lời mời
         DELETE FROM friends 
         WHERE user_id = p_user_id AND friend_id = p_friend_id;
 
-        -- Nếu không xóa được (không phải người gửi) thì báo lỗi
         IF ROW_COUNT() = 0 THEN
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Bạn không phải người gửi lời mời nên không thể cancel';
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Bạn không phải người gửi lời mời';
         END IF;
 
     ELSE
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Hành động không hợp lệ! Chỉ dùng: accept, reject, cancel, delete';
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Chỉ dùng: accept, reject, cancel, delete';
     END IF;
 
     COMMIT;
